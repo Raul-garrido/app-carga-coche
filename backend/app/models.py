@@ -24,6 +24,27 @@ class ConfigUpdate(BaseModel):
     default_price_per_kwh: Optional[float] = Field(default=None, ge=0)
 
 
+class MyAudiCredentialsIn(BaseModel):
+    username: str = Field(min_length=1)
+    password: str = Field(min_length=1)
+    spin: Optional[str] = None
+
+
+class MyAudiStatusOut(BaseModel):
+    enabled: bool
+    username: Optional[str] = None
+    connected: Optional[bool] = None
+    last_checked_at: Optional[datetime] = None
+    last_error: Optional[str] = None
+
+
+class MyAudiTestOut(BaseModel):
+    ok: bool
+    message: str
+    percent: Optional[float] = None
+    charging: Optional[bool] = None
+
+
 class BatteryStatusOut(BaseModel):
     percent: float
     source: BatterySourceKind

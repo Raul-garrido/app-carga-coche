@@ -115,6 +115,38 @@
       </div>
     </section>
 
+    <section class="card hidden" id="myaudi-card">
+      <h2>MyAudi automático</h2>
+      <p class="hint">
+        Opcional: guarda aquí tu usuario y contraseña de MyAudi para que el
+        servidor intente leer el % de batería solo, sin escribirlo a mano.
+        Solo funciona en modo autoalojado (este servidor), nunca en la
+        versión de GitHub Pages, y hoy Audi bloquea a menudo el login de
+        clientes no oficiales — usa "Probar conexión" para comprobarlo
+        cuando quieras, sin tener que tocar nada más.
+      </p>
+      <form id="myaudi-form" class="inline-form">
+        <label>
+          Usuario MyAudi
+          <input type="email" id="myaudi-username" autocomplete="off" placeholder="tu@email.com" />
+        </label>
+        <label>
+          Contraseña MyAudi
+          <input type="password" id="myaudi-password" autocomplete="off" placeholder="••••••••" />
+        </label>
+        <label>
+          SPIN (opcional)
+          <input type="text" id="myaudi-spin" autocomplete="off" placeholder="solo si lo necesitas" />
+        </label>
+        <button type="submit">Guardar y probar</button>
+      </form>
+      <div class="row">
+        <button type="button" id="myaudi-test-btn" class="ghost">Probar conexión</button>
+        <button type="button" id="myaudi-remove-btn" class="ghost danger-text">Quitar credenciales</button>
+      </div>
+      <p id="myaudi-status" class="hint"></p>
+    </section>
+
     <section class="card" id="history-card">
       <h2>Historial</h2>
       <table id="history-table">

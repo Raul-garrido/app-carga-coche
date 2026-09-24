@@ -238,6 +238,45 @@ class Store:
         session["readings"] = [dict(r) for r in readings]
         return session
 
+    # ---- MyAudi credentials (set from the PWA, not just .env) ---------
+
+    _MYAUDI_KEYS = ("myaudi_username", "myaudi_password", "myaudi_spin")
+
+    def get_myaudi_credentials(self) -> Optional[dict]:
+        with self._lock:
+            rows = self._connect().execute(
+                "SELECT key, value FROM config WHERE key IN (?, ?, ?)", self._MYAUDI_KEYS
+            ).fetchall()
+        raw = {row["key"]: row["value"] for row in rows}
+        username = raw.get("myaudi_username")
+        password = raw.get("myaudi_password")
+        if not username or not password:
+            return None
+        return {"username": username, "password": password, "spin": raw.get("myaudi_spin") or None}
+
+    def set_myaudi_credentials(self, username: str, password: str, spin: Optional[str]) -> None:
+        with self._lock:
+            conn = self._connect()
+            for key, value in (
+                ("myaudi_username", username),
+                ("myaudi_password", password),
+                ("myaudi_spin", spin or ""),
+            ):
+                conn.execute(
+                    "INSERT INTO config (key, value) VALUES (?, ?) "
+                    "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                    (key, value),
+                )
+            conn.commit()
+
+    def clear_myaudi_credentials(self) -> None:
+        with self._lock:
+            conn = self._connect()
+            conn.execute(
+                "DELETE FROM config WHERE key IN (?, ?, ?)", self._MYAUDI_KEYS
+            )
+            conn.commit()
+
     def list_sessions(self) -> list[dict]:
         with self._lock:
             conn = self._connect()

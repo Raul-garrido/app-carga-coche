@@ -7,3 +7,9 @@
 # a package called `audiconnectpy`, which does not exist on PyPI at all.
 carconnectivity>=0.11
 carconnectivity-connector-audi>=0.3.2
+
+# Windows-only fix: without this, Python's bundled OpenSSL often can't find
+# a root CA bundle at all (CERTIFICATE_VERIFY_FAILED: unable to get local
+# issuer certificate) before it even gets to talk to Audi. Makes ssl use
+# the OS certificate store instead. Harmless on macOS/Linux.
+pip-system-certs; sys_platform == "win32"

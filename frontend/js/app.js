@@ -345,6 +345,97 @@ async function restoreActiveSession() {
   }
 }
 
+function renderMyAudiStatus(result) {
+  const el = document.getElementById("myaudi-status");
+  el.classList.remove("status-ok", "status-error");
+  if (!result) {
+    el.textContent = "";
+    return;
+  }
+  if (result.ok) {
+    el.classList.add("status-ok");
+    el.textContent = `✅ ${result.message}`;
+  } else {
+    el.classList.add("status-error");
+    el.textContent = `❌ No se pudo conectar: ${result.message}`;
+  }
+}
+
+async function refreshMyAudiStatus() {
+  try {
+    const status = await Api.getMyAudiStatus();
+    document.getElementById("myaudi-remove-btn").classList.toggle("hidden", !status.enabled);
+    document.getElementById("myaudi-test-btn").classList.toggle("hidden", !status.enabled);
+    if (status.enabled) {
+      document.getElementById("myaudi-username").value = "";
+      document.getElementById("myaudi-username").placeholder = status.username;
+    }
+    if (status.enabled && status.last_error) {
+      renderMyAudiStatus({ ok: false, message: status.last_error });
+    } else if (status.enabled && status.connected) {
+      renderMyAudiStatus({ ok: true, message: "Conectado correctamente con MyAudi." });
+    } else if (status.enabled) {
+      renderMyAudiStatus(null);
+      document.getElementById("myaudi-status").textContent =
+        "Credenciales guardadas. Pulsa \"Probar conexión\" para comprobar si Audi responde.";
+    } else {
+      renderMyAudiStatus(null);
+    }
+  } catch (err) {
+    /* backend without this endpoint yet, or unreachable — leave hidden */
+  }
+}
+
+async function handleMyAudiSubmit(event) {
+  event.preventDefault();
+  const username = document.getElementById("myaudi-username").value.trim();
+  const password = document.getElementById("myaudi-password").value;
+  const spin = document.getElementById("myaudi-spin").value.trim();
+  if (!username || !password) {
+    showError("Introduce usuario y contraseña de MyAudi.");
+    return;
+  }
+  renderMyAudiStatus(null);
+  document.getElementById("myaudi-status").textContent = "Probando conexión con MyAudi (puede tardar hasta 15 segundos)...";
+  try {
+    const result = await Api.setMyAudiCredentials(username, password, spin);
+    document.getElementById("myaudi-password").value = "";
+    renderMyAudiStatus(result);
+    await refreshMyAudiStatus();
+    await refreshBatteryStatus();
+  } catch (err) {
+    renderMyAudiStatus({ ok: false, message: err.message });
+  }
+}
+
+async function handleMyAudiTest() {
+  renderMyAudiStatus(null);
+  document.getElementById("myaudi-status").textContent = "Probando conexión con MyAudi (puede tardar hasta 15 segundos)...";
+  try {
+    const result = await Api.testMyAudiConnection();
+    renderMyAudiStatus(result);
+    await refreshBatteryStatus();
+  } catch (err) {
+    renderMyAudiStatus({ ok: false, message: err.message });
+  }
+}
+
+async function handleMyAudiRemove() {
+  if (!confirm("¿Quitar las credenciales de MyAudi guardadas en el servidor?")) return;
+  try {
+    await Api.clearMyAudiCredentials();
+    document.getElementById("myaudi-username").value = "";
+    document.getElementById("myaudi-username").placeholder = "tu@email.com";
+    document.getElementById("myaudi-password").value = "";
+    document.getElementById("myaudi-spin").value = "";
+    renderMyAudiStatus(null);
+    await refreshMyAudiStatus();
+    await refreshBatteryStatus();
+  } catch (err) {
+    showError(`No se pudo quitar: ${err.message}`);
+  }
+}
+
 async function init() {
   Api = await detectApi();
 
@@ -355,6 +446,14 @@ async function init() {
   document.getElementById("finish-form").addEventListener("submit", handleFinishSession);
   document.getElementById("target-input").addEventListener("input", renderBattery);
   document.getElementById("history-body").addEventListener("click", handleHistoryClick);
+
+  if (Api.hasBackend) {
+    document.getElementById("myaudi-card").classList.remove("hidden");
+    document.getElementById("myaudi-form").addEventListener("submit", handleMyAudiSubmit);
+    document.getElementById("myaudi-test-btn").addEventListener("click", handleMyAudiTest);
+    document.getElementById("myaudi-remove-btn").addEventListener("click", handleMyAudiRemove);
+    await refreshMyAudiStatus();
+  }
 
   await loadConfig();
   await refreshBatteryStatus();

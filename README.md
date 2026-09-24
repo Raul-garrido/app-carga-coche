@@ -62,6 +62,16 @@ sin backend, con los datos en el propio navegador.
 
 ### 2. Autoalojada (avanzado — solo si más adelante quieres MyAudi automático)
 
+**En Windows, con esta misma carpeta:** doble clic en
+[`Iniciar servidor.bat`](Iniciar%20servidor.bat) — instala lo que falte la
+primera vez, arranca el servidor en su propia ventana y abre
+`http://localhost:8000` en el navegador solo. Para pararlo, doble clic en
+[`Detener servidor.bat`](Detener%20servidor.bat) (o cierra directamente la
+ventana del servidor). Puedes arrancarlo y pararlo cuando quieras, sin
+tocar nada más.
+
+**Manual / otros sistemas:**
+
 ```bash
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
@@ -89,20 +99,35 @@ dejar sitio a la integración automática de MyAudi.
 
 ## Activar MyAudi automático
 
+**Desde la propia PWA (recomendado):** con el servidor autoalojado en
+marcha, abre la app — verás una tarjeta "MyAudi automático" al final.
+Escribe ahí tu usuario y contraseña de MyAudi y pulsa "Guardar y probar":
+el servidor las guarda en su base de datos local (nunca en el navegador,
+nunca en este repositorio) e intenta conectar en el momento, mostrando si
+ha funcionado o el motivo exacto por el que ha fallado. El botón "Probar
+conexión" repite la prueba cuando quieras, sin tener que volver a escribir
+nada — pensado para ir comprobando de vez en cuando si Audi ha dejado de
+bloquear el login (ver más abajo). "Quitar credenciales" las borra del
+servidor y vuelve a la entrada manual del %. Esta tarjeta solo aparece en
+modo autoalojado; en la versión de GitHub Pages no existe.
+
+**Por `.env` (alternativa, requiere reiniciar el servidor para cada
+cambio):**
+
 ```bash
 pip install -r requirements-myaudi.txt
 cp .env.example .env   # rellena MYAUDI_USERNAME / MYAUDI_PASSWORD
 # y pon MYAUDI_AUTO_ENABLED=true
 ```
 
-Con esto activado: el % ya no se introduce a mano (se lee de Audi cada
-pocos minutos), se ve el tiempo restante estimado por Audi cuando está
-cargando, y la sesión de carga se abre sola en cuanto Audi reporta que ha
-empezado a cargar y se cierra sola en cuanto para — para que eso funcione,
-antes tienes que poner un precio por defecto en `PUT /api/config`
-(`default_price_per_kwh`), porque si no la app no sabe qué precio usar
-para la sesión que abre por su cuenta. Los kWh de Policharger se siguen
-introduciendo a mano como siempre.
+Con esto activado (por cualquiera de las dos vías): el % ya no se
+introduce a mano (se lee de Audi cada pocos minutos), se ve el tiempo
+restante estimado por Audi cuando está cargando, y la sesión de carga se
+abre sola en cuanto Audi reporta que ha empezado a cargar y se cierra sola
+en cuanto para — para que eso funcione, antes tienes que poner un precio
+por defecto en `PUT /api/config` (`default_price_per_kwh`), porque si no
+la app no sabe qué precio usar para la sesión que abre por su cuenta. Los
+kWh de Policharger se siguen introduciendo a mano como siempre.
 
 Antes de confiar en esto: lee los avisos en
 `backend/app/integrations/myaudi_source.py` sobre rate limiting y los
@@ -119,8 +144,9 @@ Integrity"), reportado también por otros usuarios de la misma librería en
 No hay nada que arreglar en este proyecto para solucionarlo — dependería
 de que la librería añada un workaround (por ejemplo, automatizar el login
 con un navegador real vía Selenium/Playwright en vez de peticiones HTTP
-directas) o de que Audi abra una vía oficial. Mientras tanto, deja
-`MYAUDI_AUTO_ENABLED=false` y usa la entrada manual del %.
+directas) o de que Audi abra una vía oficial. Mientras tanto, usa el botón
+"Probar conexión" de la PWA cuando te apetezca comprobarlo — no cuesta
+nada intentarlo y avisa claramente si sigue sin funcionar.
 
 ## Estructura
 

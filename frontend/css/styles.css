@@ -173,6 +173,21 @@ button.ghost.danger-text {
   display: none !important;
 }
 
+#myaudi-card .row {
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+#myaudi-status.status-ok {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+#myaudi-status.status-error {
+  color: var(--danger);
+  font-weight: 600;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;

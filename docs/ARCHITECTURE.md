@@ -117,10 +117,11 @@ app-carga-coche/
 │   │   ├── store.py                # persistencia SQLite (config, sesiones, lecturas)
 │   │   ├── config.py               # settings desde variables de entorno
 │   │   ├── main.py                 # composición de la app y wiring de fuentes
-│   │   ├── routers/                # /api/config, /api/battery, /api/sessions
+│   │   ├── routers/                # /api/config, /api/battery, /api/sessions, /api/myaudi
 │   │   └── integrations/
 │   │       ├── battery_source.py   # interfaz + ManualBatterySource + MyAudiBatterySource
-│   │       ├── myaudi_source.py    # cliente MyAudi aislado (frágil, sin probar en real)
+│   │       ├── myaudi_source.py    # cliente MyAudi aislado (frágil, ya probado en real: falla)
+│   │       ├── myaudi_manager.py   # activar/probar MyAudi en caliente desde la API (sin reiniciar)
 │   │       └── charge_source.py    # interfaz + ManualChargeSource (Policharger v1)
 │   └── tests/                      # pytest: calculator + API end-to-end
 ├── frontend/                       # PWA (HTML/CSS/JS vanilla, instalable)
@@ -139,9 +140,27 @@ Tanto el % de batería como los kWh de sesión se piden a través de una
 interfaz (`BatterySource.get_soc()` / `ChargeReadingSource.record_reading()`)
 en lugar de llamarse directamente desde los routers o desde el cálculo.
 Así, cambiar MyAudi automático ↔ manual, o añadir en el futuro un
-Policharger automático, es cuestión de instanciar una clase distinta en
-`main.py` — el cálculo de coste (`calculator.py`) y el modelo de sesión
-(`store.py`) no cambian.
+Policharger automático, es cuestión de instanciar una clase distinta —
+el cálculo de coste (`calculator.py`) y el modelo de sesión (`store.py`)
+no cambian.
+
+Esa fuente activa, además, puede cambiar **en caliente**, sin reiniciar el
+servidor: `app.state.battery_source` es en realidad un
+`DynamicBatterySource` (`myaudi_manager.py`) que delega en lo que esté
+activo en cada momento. `MyAudiManager` es quien decide qué hay detrás —
+manual o MyAudi — a partir de las credenciales guardadas en SQLite
+(`Store.get_myaudi_credentials()`), y lo cambia cuando llegan peticiones a
+`/api/myaudi/credentials` desde la tarjeta "MyAudi automático" de la PWA.
+`AutoSessionManager` y los routers guardan una única referencia estable a
+ese `DynamicBatterySource`, así que no necesitan enterarse del cambio.
+
+`POST /api/myaudi/test` reinicia el cliente de MyAudi desde cero contra
+las credenciales guardadas y sondea `get_status()` durante unos segundos,
+capturando el último mensaje de error concreto que registren los loggers
+de `carconnectivity` (filtrando el volcado de traceback que la librería
+mete en el nivel CRITICAL, y quedándose solo con los mensajes ERROR
+legibles) — así la PWA puede mostrar el motivo real del fallo (p. ej.
+`invalid assertion headers`) en vez de un mensaje genérico.
 
 ## Flujo de una carga
 

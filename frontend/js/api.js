@@ -35,6 +35,17 @@ function createNetworkApi() {
   }
 
   return {
+    hasBackend: true,
+
+    getMyAudiStatus: () => request("api/myaudi/status"),
+    setMyAudiCredentials: (username, password, spin) =>
+      request("api/myaudi/credentials", {
+        method: "PUT",
+        body: JSON.stringify({ username, password, spin: spin || null }),
+      }),
+    testMyAudiConnection: () => request("api/myaudi/test", { method: "POST" }),
+    clearMyAudiCredentials: () => request("api/myaudi/credentials", { method: "DELETE" }),
+
     getConfig: () => request("api/config"),
     updateConfig: (payload) =>
       request("api/config", { method: "PUT", body: JSON.stringify(payload) }),
@@ -147,6 +158,8 @@ function createLocalApi() {
   }
 
   return {
+    hasBackend: false,
+
     async getConfig() {
       return { ...getConfigRaw(), myaudi_auto_enabled: false };
     },
