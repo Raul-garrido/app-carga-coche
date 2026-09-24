@@ -21,8 +21,14 @@ function fmtKwh(value) {
   return `${Number(value).toFixed(2)} kWh`;
 }
 
+function roundMoney(value) {
+  // Avoid binary floating-point cases like 5.5 * 0.15 = 0.8250000000000001
+  // (or 0.8249999999999999) displaying as 0,82 instead of 0,83.
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
 function fmtEuro(value) {
-  return `${Number(value).toFixed(2).replace(".", ",")} €`;
+  return `${roundMoney(Number(value)).toFixed(2).replace(".", ",")} €`;
 }
 
 function fmtPercent(value) {
@@ -226,6 +232,8 @@ async function restoreActiveSession() {
 }
 
 async function init() {
+  Api = await detectApi();
+
   document.getElementById("soc-form").addEventListener("submit", handleSocSubmit);
   document.getElementById("plan-form").addEventListener("submit", handlePlanSubmit);
   document.getElementById("start-session-btn").addEventListener("click", handleStartSession);

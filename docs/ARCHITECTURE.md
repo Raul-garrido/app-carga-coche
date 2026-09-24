@@ -1,5 +1,36 @@
 # Arquitectura y decisiones
 
+## Despliegue: por qué la app corre sin servidor por defecto
+
+El plan inicial preveía un backend ligero (Node o Python) para todo,
+principalmente para no exponer las credenciales de MyAudi en el cliente.
+Al pedir "cómo lo abro / hazlo tú" para publicarla, la limitación real es
+que solo hay forma de desplegar **contenido estático** sin depender de
+cuentas externas que no puedo crear en tu nombre (Render, Railway, un VPS,
+etc.): GitHub Pages. Un backend Python no se puede ejecutar ahí.
+
+Por eso `frontend/js/api.js` implementa dos versiones detrás de la misma
+interfaz `Api`, elegidas en `detectApi()` al arrancar:
+
+- `createNetworkApi()` — llama a `/api/...` (el backend FastAPI de
+  `backend/`). Se usa automáticamente si ese backend responde.
+- `createLocalApi()` — mismo cálculo (`frontend/js/calculator.js`, un
+  port directo de `backend/app/calculator.py`), pero guardando config,
+  estado de batería y sesiones en `localStorage` en vez de SQLite. Se usa
+  cuando no hay backend (caso de GitHub Pages).
+
+`detectApi()` simplemente prueba `fetch("api/config")`: si responde,
+backend; si no, local. El resto de la app (`app.js`, `index.html`) no sabe
+ni le importa cuál de las dos está activa.
+
+Consecuencia: el backend de `backend/` sigue existiendo tal cual se montó
+(SQLite, sesiones, el módulo aislado de MyAudi) para cuando quieras
+autoalojarlo — pero la versión publicada en GitHub Pages nunca lo toca, y
+por tanto tampoco puede usar la integración automática de MyAudi (que
+necesita un servidor para guardar credenciales con seguridad). Si algún
+día se activa esa integración, tendría sentido en el modo autoalojado, no
+en el estático.
+
 ## Investigación previa (resumen)
 
 ### MyAudi — viable, pero hay que tratarla como frágil

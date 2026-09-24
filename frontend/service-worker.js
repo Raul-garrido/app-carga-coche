@@ -1,13 +1,17 @@
-const CACHE_NAME = "carga-coche-shell-v1";
+const CACHE_NAME = "carga-coche-shell-v2";
+// Relative to the service worker's own scope, so this works whether the
+// app is served at the domain root or under a subpath (e.g. GitHub Pages'
+// https://<user>.github.io/<repo>/).
 const SHELL_FILES = [
-  "/",
-  "/index.html",
-  "/css/styles.css",
-  "/js/app.js",
-  "/js/api.js",
-  "/manifest.webmanifest",
-  "/icons/icon-192.png",
-  "/icons/icon-512.png",
+  "./",
+  "./index.html",
+  "./css/styles.css",
+  "./js/calculator.js",
+  "./js/api.js",
+  "./js/app.js",
+  "./manifest.webmanifest",
+  "./icons/icon-192.png",
+  "./icons/icon-512.png",
 ];
 
 self.addEventListener("install", (event) => {
@@ -29,8 +33,9 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
-  // Never cache API calls: this is live charging/cost data.
-  if (url.pathname.startsWith("/api/")) {
+  // Never cache API calls: this is live charging/cost data. Only relevant
+  // when a backend is actually present (see api.js:detectApi()).
+  if (url.pathname.includes("/api/")) {
     return;
   }
 
