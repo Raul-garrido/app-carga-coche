@@ -70,11 +70,25 @@ en el estático.
   `backend/app/auto_session.py` usa esa señal de "cargando sí/no" para
   abrir y cerrar la sesión de carga sola — solo los kWh de Policharger
   siguen siendo manuales, porque no hay forma automática de conseguirlos.
-- **Sigue sin probarse contra una cuenta real de Audi** (no hay
-  credenciales de prueba disponibles en este entorno). Lo que sí se
-  verificó: el código importa, arranca el hilo en segundo plano y falla de
-  forma controlada (no revienta) con credenciales falsas — ver el
-  historial de commits para el smoke test usado.
+- **Probada contra una cuenta real de Audi (septiembre 2026): el login
+  falla.** `MyAudiClient.start()` arranca el hilo en segundo plano sin
+  problema, pero el intercambio de token contra
+  `emea.bff.cariad.digital/auth/v1/idk/oidc/token` devuelve
+  `400 {"error":"invalid assertion headers"}`. No es un fallo de
+  credenciales: es el mismo error que reportan otros usuarios de
+  `carconnectivity-connector-audi` en
+  [issue #29](https://github.com/acfischer42/CarConnectivity-connector-audi/issues/29) —
+  Audi/CARIAD exige desde mayo de 2026 una atestación "Play Integrity" en
+  el intercambio de token que solo la app oficial firmada puede
+  satisfacer. La librería lo arregló parcialmente en la v0.3.2 (la que usa
+  este proyecto), pero hay reportes de julio de 2026 de que ha vuelto a
+  romperse por otra vía (la página de login ahora se renderiza con
+  JavaScript y el parser HTML de la librería ya no encuentra el campo de
+  contraseña). Fuera del alcance de este proyecto arreglarlo: dependería
+  de un cambio en la librería (p. ej. automatizar el login con un
+  navegador real) o de que Audi abra una vía oficial. El fallback a
+  entrada manual (confirmado también en esta prueba) sí funciona
+  correctamente.
 
 ### Policharger — sin API pública, entrada manual para v1
 

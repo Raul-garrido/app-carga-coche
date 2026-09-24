@@ -32,16 +32,23 @@ historial — es una app de un solo dispositivo, no una cuenta en la nube.
   Playwright, incluida la persistencia tras recargar la página.
 - ✅ Historial editable y borrable (corregir un dato mal escrito o quitar
   una sesión de prueba), tanto en la versión con backend como en la local.
-- ✅ Integración automática con MyAudi (%, si está cargando, tiempo
+- ⚠️ Integración automática con MyAudi (%, si está cargando, tiempo
   restante estimado por Audi) montada sobre `carconnectivity` +
   `carconnectivity-connector-audi` — paquetes reales, verificados
   instalándolos y leyendo su código (el intento anterior, con un paquete
   llamado `audiconnectpy`, se basaba en algo que no existe en PyPI). La
   sesión de carga también se abre y cierra sola según el estado de carga
   que reporta Audi — solo hay que seguir metiendo a mano los kWh de
-  Policharger. **Sin probar todavía contra una cuenta real** (no hay
-  credenciales de prueba disponibles). Solo funciona en modo autoalojado
-  (ver abajo), nunca en la versión de GitHub Pages.
+  Policharger. Solo funciona en modo autoalojado (ver abajo), nunca en la
+  versión de GitHub Pages. **Ya probada contra una cuenta real, y hoy no
+  funciona**: el login falla con `400 invalid assertion headers` al
+  intercambiar el token — es un bloqueo del propio backend de Audi/CARIAD
+  contra clientes no oficiales (exige atestación "Play Integrity" que un
+  cliente Python no puede satisfacer), documentado en
+  [issue #29 de la librería](https://github.com/acfischer42/CarConnectivity-connector-audi/issues/29).
+  No es un problema de credenciales ni de este proyecto. La app no se
+  rompe por esto: cae sola a pedir el % a mano, como si la integración
+  estuviera desactivada.
 - ❌ Integración automática con Policharger: no viable en un tiempo
   razonable (sin API pública). Queda como entrada manual, por diseño.
 
@@ -100,10 +107,20 @@ introduciendo a mano como siempre.
 Antes de confiar en esto: lee los avisos en
 `backend/app/integrations/myaudi_source.py` sobre rate limiting y los
 fallos de login reportados en 2026. Si falla, la app cae automáticamente a
-pedirte el % a mano — no debería romper nada más. **Todavía sin probar
-contra una cuenta real de Audi** (no había credenciales de prueba
-disponibles) — trátalo como una primera prueba de verdad, no como algo ya
-verificado de punta a punta.
+pedirte el % a mano — no debería romper nada más.
+
+**Probada de verdad contra una cuenta real de Audi (septiembre 2026):
+falla al iniciar sesión**, con `400 invalid assertion headers` en el
+intercambio de token de `emea.bff.cariad.digital`. No es un fallo de la
+contraseña ni de este código: es un bloqueo conocido y documentado del
+backend de Audi/CARIAD contra clientes no oficiales (atestación "Play
+Integrity"), reportado también por otros usuarios de la misma librería en
+[carconnectivity-connector-audi#29](https://github.com/acfischer42/CarConnectivity-connector-audi/issues/29).
+No hay nada que arreglar en este proyecto para solucionarlo — dependería
+de que la librería añada un workaround (por ejemplo, automatizar el login
+con un navegador real vía Selenium/Playwright en vez de peticiones HTTP
+directas) o de que Audi abra una vía oficial. Mientras tanto, deja
+`MYAUDI_AUTO_ENABLED=false` y usa la entrada manual del %.
 
 ## Estructura
 
