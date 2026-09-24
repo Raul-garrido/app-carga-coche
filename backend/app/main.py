@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from app import config
+from app.auto_session import AutoSessionManager
 from app.integrations.battery_source import ManualBatterySource, MyAudiBatterySource
 from app.integrations.charge_source import ManualChargeSource
 from app.routers import battery, config as config_router, sessions
@@ -19,6 +20,7 @@ async def lifespan(app: FastAPI):
     manual_source = ManualBatterySource(store)
 
     battery_source = manual_source
+    myaudi_client = None
     if config.MYAUDI_AUTO_ENABLED:
         from app.integrations.myaudi_source import MyAudiClient, MyAudiCredentials
 
@@ -26,21 +28,31 @@ async def lifespan(app: FastAPI):
             raise RuntimeError(
                 "MYAUDI_AUTO_ENABLED=true requires MYAUDI_USERNAME and MYAUDI_PASSWORD"
             )
-        client = MyAudiClient(
+        myaudi_client = MyAudiClient(
             MyAudiCredentials(
                 username=config.MYAUDI_USERNAME,
                 password=config.MYAUDI_PASSWORD,
                 spin=config.MYAUDI_SPIN,
             ),
-            min_poll_interval_seconds=config.MYAUDI_MIN_POLL_INTERVAL_SECONDS,
+            tokenstore_file=config.DATA_DIR / "myaudi_tokenstore.json",
+            cache_file=config.DATA_DIR / "myaudi_cache.json",
+            poll_interval_seconds=config.MYAUDI_MIN_POLL_INTERVAL_SECONDS,
         )
-        battery_source = MyAudiBatterySource(store, client, fallback=manual_source)
+        myaudi_client.start()
+        battery_source = MyAudiBatterySource(store, myaudi_client, fallback=manual_source)
 
     app.state.store = store
     app.state.battery_source = battery_source
     app.state.charge_source = ManualChargeSource(store)
 
+    auto_session_manager = AutoSessionManager(store, battery_source)
+    auto_session_manager.start()
+
     yield
+
+    auto_session_manager.stop()
+    if myaudi_client is not None:
+        myaudi_client.stop()
 
 
 app = FastAPI(title="Calculadora de coste de carga", lifespan=lifespan)

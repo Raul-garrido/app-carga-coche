@@ -7,9 +7,11 @@ not a rewrite — see docs/ARCHITECTURE.md for why this indirection exists.
 
 from __future__ import annotations
 
+import asyncio
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Optional
 
 from app.store import Store
 
@@ -19,6 +21,8 @@ class BatteryReading:
     percent: float
     source: str
     updated_at: datetime
+    charging: Optional[bool] = None
+    remaining_minutes: Optional[int] = None
 
 
 class BatterySource(ABC):
@@ -63,7 +67,16 @@ class MyAudiBatterySource(BatterySource):
 
     async def get_soc(self) -> BatteryReading:
         try:
-            percent = await self._client.fetch_soc()
+            # get_status() only reads attributes CarConnectivity's own
+            # background thread already fetched — cheap, but still runs
+            # library code we don't control, so keep it off the event loop.
+            status = await asyncio.to_thread(self._client.get_status)
         except Exception:
             return await self._fallback.get_soc()
-        return BatteryReading(percent=percent, source="myaudi", updated_at=datetime.now())
+        return BatteryReading(
+            percent=status.percent,
+            source="myaudi",
+            updated_at=datetime.now(),
+            charging=status.charging,
+            remaining_minutes=status.remaining_minutes,
+        )

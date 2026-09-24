@@ -215,6 +215,16 @@ class Store:
                 )
             conn.commit()
 
+    def get_active_session(self) -> Optional[dict]:
+        with self._lock:
+            conn = self._connect()
+            row = conn.execute(
+                "SELECT id FROM sessions WHERE status = 'active' ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+        if row is None:
+            return None
+        return self.get_session(row["id"])
+
     def get_session(self, session_id: int) -> Optional[dict]:
         with self._lock:
             conn = self._connect()

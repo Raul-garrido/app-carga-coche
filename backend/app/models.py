@@ -28,6 +28,8 @@ class BatteryStatusOut(BaseModel):
     percent: float
     source: BatterySourceKind
     updated_at: datetime
+    charging: Optional[bool] = None
+    remaining_minutes: Optional[int] = None
 
 
 class ManualSocIn(BaseModel):

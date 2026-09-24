@@ -1,103 +1,140 @@
-"""Isolated adapter around the unofficial MyAudi API.
+"""Isolated adapter around MyAudi, built on the `carconnectivity` framework
+(https://github.com/tillsteinbach/CarConnectivity) plus its Audi connector
+(https://github.com/acfischer42/CarConnectivity-connector-audi).
 
-Everything in this file is quarantined on purpose: it is the one part of
-the app built on reverse-engineered, community-maintained access to a
-vendor backend that can (and, per public issue trackers, regularly does)
-change without notice. If it breaks, nothing outside this file should need
-to change — the app falls back to manual SoC entry automatically (see
-`battery_source.MyAudiBatterySource`).
+This replaces an earlier attempt based on a package called `audiconnectpy`,
+which turned out **not to exist on PyPI at all** (confirmed 404 fetching
+https://pypi.org/pypi/audiconnectpy/json — an earlier research pass had
+taken a search-engine summary at face value without actually installing
+it). `carconnectivity` and `carconnectivity-connector-audi` were verified
+for real: both installed cleanly with pip, and everything this module
+relies on (class names, methods, enum values, config shape) was read
+directly out of the installed package source, not guessed from docs.
+None of this has been run against a real Audi account — there's no test
+account available. Treat first use as a real integration test.
 
-Status as of this writing (research done Sept 2026), NOT verified against
-a real account:
-  - The `audiconnectpy` PyPI package (https://pypi.org/project/audiconnectpy/)
-    is the actively maintained Python client backing the Home Assistant
-    `audi_connect_ha` integration. It wraps the same OAuth2/OIDC flow
-    documented by github.com/Grudesky/myaudi-api and
-    github.com/audiconnect/audi_connect_ha.
-  - Audi's backend enforces aggressive rate limiting (community reports:
-    on the order of ~6 requests/hour before a temporary lockout that also
-    affects the official app). This module defaults to a long minimum
-    poll interval to stay well under that.
-  - Multiple 2026 issues on audi_connect_ha report "Invalid credentials"
-    failures traced to Play Integrity attestation checks on Audi's login
-    endpoint, which a non-official client cannot always satisfy. This can
-    make automatic login intermittently or permanently unavailable
-    regardless of how this module is written — it is a backend-side risk,
-    not a bug to fix here.
-  - The exact `audiconnectpy` call signature (constructor args, method
-    names) could not be confirmed from published docs at the time this
-    was written. TODO before first real use: pip install the package,
-    read its actual API in site-packages, and adjust `_fetch_soc_raw`
-    below accordingly — do not assume this compiles/works unmodified.
+Design, still true to the original plan:
+  - Quarantined here so a breaking change upstream doesn't ripple into the
+    rest of the app.
+  - Falls back to manual SoC entry automatically on any failure (see
+    battery_source.MyAudiBatterySource).
+  - `carconnectivity` itself owns a background thread once started
+    (`CarConnectivity.startup()`) that polls Audi's backend on its own
+    schedule and already backs off 15 minutes on a 429 (rate limit) — see
+    `_background_loop` in the installed connector's `connector.py`. This
+    class does not poll the network itself; it just reads whatever the
+    background thread has already fetched into memory.
+  - `interval` (seconds between polls) has a hard minimum of 180s enforced
+    by the connector itself; MYAUDI_MIN_POLL_INTERVAL_SECONDS is clamped
+    to that floor.
 
-Because of all of the above, this module is optional (see
-requirements-myaudi.txt) and disabled unless MYAUDI_AUTO_ENABLED=true.
+Requires `pip install -r requirements-myaudi.txt` and a filled-in `.env`
+(MYAUDI_USERNAME, MYAUDI_PASSWORD, optionally MYAUDI_SPIN) with
+MYAUDI_AUTO_ENABLED=true. SPIN is only used for vehicle commands
+(lock/climate/etc.), not for reading charge status, so it's optional here.
 """
 
 from __future__ import annotations
 
-import time
+import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Optional
+
+LOG = logging.getLogger(__name__)
 
 
 @dataclass
 class MyAudiCredentials:
     username: str
     password: str
-    spin: str | None = None
+    spin: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class MyAudiStatus:
+    percent: float
+    charging: bool
+    remaining_minutes: Optional[int]
 
 
 class MyAudiClient:
-    """Thin, rate-limited wrapper. Caches the last SoC and refuses to poll
-    more often than `min_poll_interval_seconds`."""
-
     def __init__(
         self,
         credentials: MyAudiCredentials,
-        min_poll_interval_seconds: int = 900,  # 15 min; ~6 req/hour ceiling
+        tokenstore_file: Path,
+        cache_file: Path,
+        poll_interval_seconds: int = 300,
     ):
         self._credentials = credentials
-        self._min_poll_interval = min_poll_interval_seconds
-        self._last_fetch_at: float = 0.0
-        self._last_percent: float | None = None
-        self._connection = None  # lazily created underlying client
+        self._tokenstore_file = str(tokenstore_file)
+        self._cache_file = str(cache_file)
+        # The Audi connector rejects an interval below 180s outright.
+        self._poll_interval_seconds = max(poll_interval_seconds, 180)
+        self._car_connectivity = None
 
-    async def fetch_soc(self) -> float:
-        now = time.monotonic()
-        if self._last_percent is not None and (now - self._last_fetch_at) < self._min_poll_interval:
-            return self._last_percent
-
-        percent = await self._fetch_soc_raw()
-        self._last_percent = percent
-        self._last_fetch_at = now
-        return percent
-
-    async def _fetch_soc_raw(self) -> float:
-        """Talk to Audi's backend. Isolated so it's the only thing that
-        needs updating if the upstream API surface changes."""
+    def start(self) -> None:
+        """Create the CarConnectivity instance and start its background
+        polling thread. Call once, at app startup."""
         try:
-            from audiconnectpy import AudiConnect  # optional dependency
+            from carconnectivity.carconnectivity import CarConnectivity
         except ImportError as exc:
             raise RuntimeError(
-                "audiconnectpy is not installed. Run "
+                "carconnectivity is not installed. Run "
                 "'pip install -r requirements-myaudi.txt' or disable "
                 "MYAUDI_AUTO_ENABLED and use manual SoC entry instead."
             ) from exc
 
-        if self._connection is None:
-            # NOTE: verify these constructor kwargs against the installed
-            # audiconnectpy version before relying on this in production.
-            self._connection = AudiConnect(
-                username=self._credentials.username,
-                password=self._credentials.password,
-                spin=self._credentials.spin,
-            )
-            await self._connection.async_login()
+        connector_config = {
+            "username": self._credentials.username,
+            "password": self._credentials.password,
+            "interval": self._poll_interval_seconds,
+        }
+        if self._credentials.spin:
+            connector_config["spin"] = self._credentials.spin
 
-        vehicles = await self._connection.async_get_vehicles()
+        config = {"carConnectivity": {"connectors": [{"type": "audi", "config": connector_config}]}}
+        self._car_connectivity = CarConnectivity(
+            config=config,
+            tokenstore_file=self._tokenstore_file,
+            cache_file=self._cache_file,
+        )
+        self._car_connectivity.startup()
+
+    def stop(self) -> None:
+        if self._car_connectivity is not None:
+            self._car_connectivity.shutdown()
+            self._car_connectivity = None
+
+    def get_status(self) -> MyAudiStatus:
+        """Read whatever the background thread has already fetched. Does
+        not itself make a network call, so it's cheap to call often."""
+        from carconnectivity.charging import Charging
+        from carconnectivity.drive import ElectricDrive
+
+        if self._car_connectivity is None:
+            raise RuntimeError("MyAudiClient.start() was not called")
+
+        vehicles = self._car_connectivity.garage.list_vehicles()
         if not vehicles:
-            raise RuntimeError("MyAudi account has no vehicles")
+            raise RuntimeError("No vehicles on this MyAudi account yet (still fetching?)")
         vehicle = vehicles[0]
-        # NOTE: field name (state_of_charge / battery_soc / soc_level, ...)
-        # depends on the installed audiconnectpy version; verify and adjust.
-        return float(vehicle.state_of_charge)
+
+        electric_drive = next(
+            (d for d in vehicle.drives.drives.values() if isinstance(d, ElectricDrive)), None
+        )
+        if electric_drive is None or electric_drive.level.value is None:
+            raise RuntimeError("No electric drive / battery level reported yet")
+        percent = float(electric_drive.level.value)
+
+        charging_state = vehicle.charging.state.value
+        charging = charging_state == Charging.ChargingState.CHARGING
+
+        remaining_minutes = None
+        estimated = vehicle.charging.estimated_date_reached.value
+        if charging and estimated is not None:
+            now = datetime.now(tz=estimated.tzinfo or timezone.utc)
+            remaining_minutes = max(int((estimated - now).total_seconds() // 60), 0)
+
+        return MyAudiStatus(percent=percent, charging=charging, remaining_minutes=remaining_minutes)

@@ -16,7 +16,11 @@ async def get_battery_status(request: Request) -> BatteryStatusOut:
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return BatteryStatusOut(
-        percent=reading.percent, source=reading.source, updated_at=reading.updated_at
+        percent=reading.percent,
+        source=reading.source,
+        updated_at=reading.updated_at,
+        charging=reading.charging,
+        remaining_minutes=reading.remaining_minutes,
     )
 
 

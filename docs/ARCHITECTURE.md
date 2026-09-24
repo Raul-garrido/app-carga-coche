@@ -35,28 +35,46 @@ en el estático.
 
 ### MyAudi — viable, pero hay que tratarla como frágil
 
-- La API no oficial (`audiconnectpy`, paquete PyPI mantenido activamente y
-  usado por la integración `audi_connect_ha` de Home Assistant) es la vía
-  más razonable: implementa el flujo OAuth2/OIDC de 13 pasos por nosotros,
-  en lugar de tener que reimplementarlo desde cero a partir de
-  [Grudesky/myaudi-api](https://github.com/Grudesky/myaudi-api) o
-  [audiconnect/audi_connect_ha](https://github.com/audiconnect/audi_connect_ha).
-- Riesgos confirmados por los issue trackers públicos (a fecha de esta
-  investigación, sept. 2026):
-  - **Rate limiting agresivo**: del orden de ~6 peticiones/hora antes de un
-    bloqueo temporal de cuenta que afecta también a la app oficial.
-  - **Fallos de "Invalid credentials"** recurrentes en 2026, en varios casos
-    atribuidos a comprobaciones de *Play Integrity* en el endpoint de login
-    de Audi, que un cliente no oficial no siempre puede satisfacer. Esto es
-    un riesgo del backend de Audi, no un bug que se pueda arreglar aquí.
+- **Corrección sobre una investigación anterior**: la primera versión de
+  esta sección decía que había que usar un paquete llamado `audiconnectpy`,
+  descrito por un resumen de búsqueda como "mantenido activamente". Al
+  intentar instalarlo (`pip install audiconnectpy`) resultó que **no
+  existe en PyPI** (404 en `pypi.org/pypi/audiconnectpy/json`) — el
+  resumen se apoyaba en contenido que no correspondía a un paquete real.
+  Lección: para una dependencia de la que va a depender toda una
+  integración, instalarla y comprobarlo es obligatorio, no basta con un
+  resumen de búsqueda.
+- Base real, verificada instalando ambos paquetes en un entorno aislado y
+  leyendo su código fuente en `site-packages` (no solo su documentación):
+  [`carconnectivity`](https://github.com/tillsteinbach/CarConnectivity)
+  (framework multi-marca, activamente mantenido) +
+  [`carconnectivity-connector-audi`](https://github.com/acfischer42/CarConnectivity-connector-audi)
+  (conector específico de Audi, última versión en PyPI de junio de 2026).
+  El conector ya trae su propio hilo en segundo plano que sondea la API de
+  Audi por su cuenta y hace backoff de 15 minutos si recibe un 429 — no
+  hace falta que nuestro código gestione el rate limiting a mano.
+- Riesgos que siguen siendo reales, confirmados por issue trackers
+  públicos (sept. 2026): rate limiting agresivo (del orden de ~6
+  peticiones/hora antes de bloqueo temporal de cuenta, que afecta también
+  a la app oficial), y fallos de "Invalid credentials" recurrentes en
+  2026, en varios casos atribuidos a comprobaciones de *Play Integrity* en
+  el login de Audi que un cliente no oficial no siempre puede satisfacer.
+  Esto es un riesgo del backend de Audi, no algo que se arregle aquí.
 - Decisión: se aísla toda la integración en
   `backend/app/integrations/myaudi_source.py`, detrás de la interfaz
   `BatterySource`, deshabilitada por defecto (`MYAUDI_AUTO_ENABLED=false`).
   Si falla en cualquier momento, cae automáticamente a la entrada manual
-  del %, sin tocar el resto de la app. **No se ha podido probar contra una
-  cuenta real** (no hay credenciales disponibles en este entorno) — antes
-  de usarla en producción, instalar `audiconnectpy`, revisar su API real en
-  `site-packages` y ajustar `_fetch_soc_raw` si hace falta.
+  del %, sin tocar el resto de la app.
+- Además del %, se expone si está cargando y el tiempo restante estimado
+  que reporta la propia Audi (`Charging.estimated_date_reached`), y
+  `backend/app/auto_session.py` usa esa señal de "cargando sí/no" para
+  abrir y cerrar la sesión de carga sola — solo los kWh de Policharger
+  siguen siendo manuales, porque no hay forma automática de conseguirlos.
+- **Sigue sin probarse contra una cuenta real de Audi** (no hay
+  credenciales de prueba disponibles en este entorno). Lo que sí se
+  verificó: el código importa, arranca el hilo en segundo plano y falla de
+  forma controlada (no revienta) con credenciales falsas — ver el
+  historial de commits para el smoke test usado.
 
 ### Policharger — sin API pública, entrada manual para v1
 

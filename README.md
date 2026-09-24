@@ -32,11 +32,16 @@ historial — es una app de un solo dispositivo, no una cuenta en la nube.
   Playwright, incluida la persistencia tras recargar la página.
 - ✅ Historial editable y borrable (corregir un dato mal escrito o quitar
   una sesión de prueba), tanto en la versión con backend como en la local.
-- 🔧 Integración automática con MyAudi: en revisión. El paquete que iba a
-  usar (`audiconnectpy`) resultó **no existir en PyPI** — hay que
-  encontrar una base real antes de activar nada (ver
-  `docs/ARCHITECTURE.md`). Cuando exista, solo estará disponible en modo
-  autoalojado (ver abajo), nunca en la versión de GitHub Pages.
+- ✅ Integración automática con MyAudi (%, si está cargando, tiempo
+  restante estimado por Audi) montada sobre `carconnectivity` +
+  `carconnectivity-connector-audi` — paquetes reales, verificados
+  instalándolos y leyendo su código (el intento anterior, con un paquete
+  llamado `audiconnectpy`, se basaba en algo que no existe en PyPI). La
+  sesión de carga también se abre y cierra sola según el estado de carga
+  que reporta Audi — solo hay que seguir metiendo a mano los kWh de
+  Policharger. **Sin probar todavía contra una cuenta real** (no hay
+  credenciales de prueba disponibles). Solo funciona en modo autoalojado
+  (ver abajo), nunca en la versión de GitHub Pages.
 - ❌ Integración automática con Policharger: no viable en un tiempo
   razonable (sin API pública). Queda como entrada manual, por diseño.
 
@@ -75,24 +80,30 @@ dejar sitio a la integración automática de MyAudi.
 4. Al desenchufar, pulsa "Finalizar sesión" (con el % final si lo sabes).
    Queda guardada en el historial.
 
-## Activar MyAudi automático (en revisión — todavía no funcional)
-
-**Actualización:** el paquete `audiconnectpy` en el que se basaba
-`requirements-myaudi.txt` no existe en PyPI (lo comprobé al intentar
-instalarlo: 404). No actives `MYAUDI_AUTO_ENABLED` todavía — está pendiente
-encontrar y verificar una librería real antes de que esto sirva para algo.
-Se actualizará esta sección en cuanto haya una base fiable.
+## Activar MyAudi automático
 
 ```bash
 pip install -r requirements-myaudi.txt
-cp .env.example .env   # rellena MYAUDI_USERNAME / MYAUDI_PASSWORD / MYAUDI_SPIN
+cp .env.example .env   # rellena MYAUDI_USERNAME / MYAUDI_PASSWORD
 # y pon MYAUDI_AUTO_ENABLED=true
 ```
+
+Con esto activado: el % ya no se introduce a mano (se lee de Audi cada
+pocos minutos), se ve el tiempo restante estimado por Audi cuando está
+cargando, y la sesión de carga se abre sola en cuanto Audi reporta que ha
+empezado a cargar y se cierra sola en cuanto para — para que eso funcione,
+antes tienes que poner un precio por defecto en `PUT /api/config`
+(`default_price_per_kwh`), porque si no la app no sabe qué precio usar
+para la sesión que abre por su cuenta. Los kWh de Policharger se siguen
+introduciendo a mano como siempre.
 
 Antes de confiar en esto: lee los avisos en
 `backend/app/integrations/myaudi_source.py` sobre rate limiting y los
 fallos de login reportados en 2026. Si falla, la app cae automáticamente a
-pedirte el % a mano — no debería romper nada más.
+pedirte el % a mano — no debería romper nada más. **Todavía sin probar
+contra una cuenta real de Audi** (no había credenciales de prueba
+disponibles) — trátalo como una primera prueba de verdad, no como algo ya
+verificado de punta a punta.
 
 ## Estructura
 

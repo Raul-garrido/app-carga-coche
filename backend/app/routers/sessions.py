@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -72,6 +72,16 @@ def create_session(payload: SessionCreateIn, request: Request) -> SessionOut:
 def list_sessions(request: Request) -> list[SessionOut]:
     store = request.app.state.store
     return [_to_session_out(s) for s in store.list_sessions()]
+
+
+@router.get("/active", response_model=Optional[SessionOut])
+def get_active_session(request: Request) -> Optional[SessionOut]:
+    """Lets the frontend pick up a session it didn't itself start — e.g.
+    one opened automatically by the MyAudi auto-session poller — instead
+    of relying only on the id it remembers locally."""
+    store = request.app.state.store
+    session = store.get_active_session()
+    return _to_session_out(session) if session else None
 
 
 @router.get("/{session_id}", response_model=SessionOut)
