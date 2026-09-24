@@ -33,12 +33,13 @@
           <span class="stat-label">kWh hasta objetivo</span>
         </div>
       </div>
+      <p id="charging-status" class="hint hidden"></p>
       <form id="soc-form" class="inline-form">
         <label>
-          % actual (MyAudi)
+          <span id="soc-input-label">% actual (MyAudi)</span>
           <input type="number" id="soc-input" min="0" max="100" step="1" placeholder="ej. 50" required />
         </label>
-        <button type="submit">Actualizar %</button>
+        <button type="submit" id="soc-submit-btn">Actualizar %</button>
       </form>
     </section>
 

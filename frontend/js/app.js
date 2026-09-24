@@ -58,22 +58,40 @@ function renderBattery() {
   const chargedEl = document.getElementById("battery-charged-kwh");
   const remainingEl = document.getElementById("battery-remaining-kwh");
   const targetInput = document.getElementById("target-input");
+  const chargingStatusEl = document.getElementById("charging-status");
+  const socLabelEl = document.getElementById("soc-input-label");
 
   if (!state.battery) {
     percentEl.textContent = "—";
     sourceEl.textContent = "sin datos";
     chargedEl.textContent = "—";
     remainingEl.textContent = "—";
+    chargingStatusEl.classList.add("hidden");
     return;
   }
 
   const target = Number(targetInput.value) || 100;
   percentEl.textContent = fmtPercent(state.battery.percent);
-  sourceEl.textContent = state.battery.source === "myaudi" ? "MyAudi auto" : "manual";
+  const isAuto = state.battery.source === "myaudi";
+  sourceEl.textContent = isAuto ? "MyAudi auto" : "manual";
   const charged = (capacity * state.battery.percent) / 100;
   const remaining = Math.max((capacity * target) / 100 - charged, 0);
   chargedEl.textContent = fmtKwh(charged);
   remainingEl.textContent = fmtKwh(remaining);
+
+  socLabelEl.textContent = isAuto ? "Corregir % a mano (si Audi falla)" : "% actual (MyAudi)";
+
+  if (state.battery.charging) {
+    const minutes = state.battery.remaining_minutes;
+    const timeText =
+      minutes != null
+        ? ` — según Audi, quedan ${minutes >= 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} min` : `${minutes} min`}`
+        : "";
+    chargingStatusEl.textContent = `Cargando ahora${timeText}`;
+    chargingStatusEl.classList.remove("hidden");
+  } else {
+    chargingStatusEl.classList.add("hidden");
+  }
 
   document.getElementById("soc-input").value = state.battery.percent;
 }
@@ -108,6 +126,17 @@ async function handlePlanSubmit(event) {
     renderBattery();
   } catch (err) {
     showError(`No se pudo calcular: ${err.message}`);
+  }
+
+  // Best-effort: this is also the price/objetivo an auto-opened session
+  // (MyAudi backend mode) will use, so keep it saved as the default.
+  try {
+    state.config = await Api.updateConfig({
+      default_price_per_kwh: price,
+      default_target_percent: target,
+    });
+  } catch (err) {
+    /* not fatal — the plan above already showed, this just persists it */
   }
 }
 
@@ -286,6 +315,21 @@ async function handleHistoryClick(event) {
 }
 
 async function restoreActiveSession() {
+  // Prefer asking "is there an active session at all" — catches one opened
+  // automatically by the backend's MyAudi poller, not just one this
+  // browser itself started (which is all the old localStorage id could see).
+  try {
+    const active = await Api.getActiveSession();
+    if (active) {
+      state.activeSessionId = active.id;
+      saveActiveSessionId(active.id);
+      renderSession(active);
+      return;
+    }
+  } catch (err) {
+    /* endpoint not available on this Api implementation — fall through */
+  }
+
   if (!state.activeSessionId) return;
   try {
     const session = await Api.getSession(state.activeSessionId);
@@ -322,6 +366,16 @@ async function init() {
       /* PWA install just won't be offline-capable; not fatal */
     });
   }
+
+  // Only while idle: pick up a session the backend's MyAudi poller might
+  // have opened on its own, without the user having to reload the page.
+  // Skipped once a session is showing, so it doesn't stomp on an in-progress
+  // reading the user is typing.
+  setInterval(async () => {
+    if (state.activeSessionId) return;
+    await refreshBatteryStatus();
+    await restoreActiveSession();
+  }, 20000);
 }
 
 init();

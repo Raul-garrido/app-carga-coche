@@ -50,6 +50,7 @@ function createNetworkApi() {
     createSession: (payload) =>
       request("api/sessions", { method: "POST", body: JSON.stringify(payload) }),
     listSessions: () => request("api/sessions"),
+    getActiveSession: () => request("api/sessions/active"),
     getSession: (id) => request(`api/sessions/${id}`),
     addReading: (id, kwh) =>
       request(`api/sessions/${id}/readings`, { method: "POST", body: JSON.stringify({ kwh }) }),
@@ -217,6 +218,11 @@ function createLocalApi() {
 
     async getSession(id) {
       return toSessionOut(findSession(getSessions(), id));
+    },
+
+    async getActiveSession() {
+      const active = getSessions().find((s) => s.status === "active");
+      return active ? toSessionOut(active) : null;
     },
 
     async addReading(id, kwh) {

@@ -162,6 +162,13 @@ button.ghost.danger-text {
   font-size: 0.85rem;
 }
 
+#charging-status {
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin: -0.25rem 0 0.75rem;
+}
+
 .hidden {
   display: none !important;
 }
