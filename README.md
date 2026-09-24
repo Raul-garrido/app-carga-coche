@@ -64,11 +64,17 @@ sin backend, con los datos en el propio navegador.
 
 **En Windows, con esta misma carpeta:** doble clic en
 [`Iniciar servidor.bat`](Iniciar%20servidor.bat) — instala lo que falte la
-primera vez, arranca el servidor en su propia ventana y abre
-`http://localhost:8000` en el navegador solo. Para pararlo, doble clic en
-[`Detener servidor.bat`](Detener%20servidor.bat) (o cierra directamente la
-ventana del servidor). Puedes arrancarlo y pararlo cuando quieras, sin
-tocar nada más.
+primera vez y arranca el servidor en su propia ventana, escuchando en toda
+la red (no solo en el propio PC). Al terminar te enseña la dirección para
+abrir **desde el móvil, en la misma wifi que el PC** (algo como
+`http://192.168.0.42:8000` — la IP exacta la detecta el script cada vez,
+puede cambiar). La primera vez, es posible que Windows pregunte si
+permites el acceso a Python/uvicorn en redes privadas: dale a "Permitir
+acceso", si no el móvil no podrá conectar. El PC tiene que quedarse
+encendido y con el servidor en marcha mientras lo uses así. Para pararlo,
+doble clic en [`Detener servidor.bat`](Detener%20servidor.bat) (o cierra
+directamente la ventana del servidor). Puedes arrancarlo y pararlo cuando
+quieras, sin tocar nada más.
 
 **Manual / otros sistemas:**
 
