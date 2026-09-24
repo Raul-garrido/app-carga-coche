@@ -30,11 +30,13 @@ historial — es una app de un solo dispositivo, no una cuenta en la nube.
 - ✅ PWA instalable, con entrada manual tanto para el % (MyAudi) como para
   los kWh de sesión (Policharger) — probada de punta a punta con
   Playwright, incluida la persistencia tras recargar la página.
-- ⚠️ Integración automática con MyAudi: módulo aislado ya montado
-  (`backend/app/integrations/myaudi_source.py`), pero **sin probar contra
-  una cuenta real** — requiere tus credenciales y validar la API exacta de
-  `audiconnectpy` antes de activarla. Solo disponible en el modo
-  autoalojado (ver abajo), no en la versión de GitHub Pages.
+- ✅ Historial editable y borrable (corregir un dato mal escrito o quitar
+  una sesión de prueba), tanto en la versión con backend como en la local.
+- 🔧 Integración automática con MyAudi: en revisión. El paquete que iba a
+  usar (`audiconnectpy`) resultó **no existir en PyPI** — hay que
+  encontrar una base real antes de activar nada (ver
+  `docs/ARCHITECTURE.md`). Cuando exista, solo estará disponible en modo
+  autoalojado (ver abajo), nunca en la versión de GitHub Pages.
 - ❌ Integración automática con Policharger: no viable en un tiempo
   razonable (sin API pública). Queda como entrada manual, por diseño.
 
@@ -73,7 +75,13 @@ dejar sitio a la integración automática de MyAudi.
 4. Al desenchufar, pulsa "Finalizar sesión" (con el % final si lo sabes).
    Queda guardada en el historial.
 
-## Activar MyAudi automático (experimental, no probado, solo modo autoalojado)
+## Activar MyAudi automático (en revisión — todavía no funcional)
+
+**Actualización:** el paquete `audiconnectpy` en el que se basaba
+`requirements-myaudi.txt` no existe en PyPI (lo comprobé al intentar
+instalarlo: 404). No actives `MYAUDI_AUTO_ENABLED` todavía — está pendiente
+encontrar y verificar una librería real antes de que esto sirva para algo.
+Se actualizará esta sección en cuanto haya una base fiable.
 
 ```bash
 pip install -r requirements-myaudi.txt

@@ -128,6 +128,35 @@ button.danger {
   color: #2a0708;
 }
 
+button.ghost {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 0.35rem 0.6rem;
+  font-size: 0.78rem;
+}
+
+button.ghost.danger-text {
+  color: var(--danger);
+  border-color: rgba(224, 85, 90, 0.4);
+}
+
+.row-actions {
+  display: flex;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+
+#history-table input[type="number"] {
+  width: 100%;
+  padding: 0.3rem;
+  font-size: 0.85rem;
+}
+
+#history-table td {
+  vertical-align: middle;
+}
+
 .hint {
   color: var(--muted);
   font-size: 0.85rem;

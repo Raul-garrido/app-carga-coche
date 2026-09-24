@@ -1,3 +1,7 @@
 # Optional dependency for the automatic MyAudi integration.
 # Only needed if MYAUDI_AUTO_ENABLED=true — see app/integrations/myaudi_source.py.
+#
+# UNVERIFIED: audiconnectpy does not exist on PyPI (confirmed 404 on
+# pypi.org/pypi/audiconnectpy/json). Do not `pip install -r` this file
+# until this is replaced with a real, verified package/URL.
 audiconnectpy>=2.3.0

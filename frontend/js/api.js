@@ -58,6 +58,9 @@ function createNetworkApi() {
         method: "POST",
         body: JSON.stringify(finalPercent != null ? { final_percent: finalPercent } : {}),
       }),
+    updateSession: (id, payload) =>
+      request(`api/sessions/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+    deleteSession: (id) => request(`api/sessions/${id}`, { method: "DELETE" }),
   };
 }
 
@@ -240,6 +243,28 @@ function createLocalApi() {
       session.final_percent = finalPercent != null ? finalPercent : current.estimated_final_percent;
       saveSessions(sessions);
       return toSessionOut(session);
+    },
+
+    async updateSession(id, payload) {
+      const sessions = getSessions();
+      const session = findSession(sessions, id);
+      if (payload.initial_percent != null) session.initial_percent = payload.initial_percent;
+      if (payload.target_percent != null) session.target_percent = payload.target_percent;
+      if (payload.price_per_kwh != null) session.price_per_kwh = payload.price_per_kwh;
+      if (payload.final_percent != null) session.final_percent = payload.final_percent;
+      if (payload.total_kwh != null) {
+        session.readings = [
+          { id: 1, kwh: payload.total_kwh, source: "manual", timestamp: nowIso() },
+        ];
+      }
+      saveSessions(sessions);
+      return toSessionOut(session);
+    },
+
+    async deleteSession(id) {
+      const sessions = getSessions();
+      findSession(sessions, id); // throws 404 if missing
+      saveSessions(sessions.filter((s) => s.id !== id));
     },
   };
 }

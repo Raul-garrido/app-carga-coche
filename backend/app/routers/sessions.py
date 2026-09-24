@@ -5,7 +5,14 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, Request
 
 from app.calculator import charge_plan, session_summary
-from app.models import ReadingCreateIn, ReadingOut, SessionCreateIn, SessionFinishIn, SessionOut
+from app.models import (
+    ReadingCreateIn,
+    ReadingOut,
+    SessionCreateIn,
+    SessionFinishIn,
+    SessionOut,
+    SessionUpdateIn,
+)
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
@@ -89,6 +96,26 @@ def add_reading(session_id: int, payload: ReadingCreateIn, request: Request) -> 
     timestamp = payload.timestamp.isoformat() if payload.timestamp else None
     charge_source.record_reading(session_id, payload.kwh, timestamp)
     return _to_session_out(store.get_session(session_id))
+
+
+@router.patch("/{session_id}", response_model=SessionOut)
+def update_session(session_id: int, payload: SessionUpdateIn, request: Request) -> SessionOut:
+    store = request.app.state.store
+    session = store.get_session(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    store.update_session(session_id, **payload.model_dump(exclude_none=True))
+    return _to_session_out(store.get_session(session_id))
+
+
+@router.delete("/{session_id}", status_code=204)
+def delete_session(session_id: int, request: Request) -> None:
+    store = request.app.state.store
+    session = store.get_session(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    store.delete_session(session_id)
 
 
 @router.post("/{session_id}/finish", response_model=SessionOut)

@@ -61,6 +61,14 @@ class SessionFinishIn(BaseModel):
     final_percent: Optional[float] = Field(default=None, ge=0, le=100)
 
 
+class SessionUpdateIn(BaseModel):
+    initial_percent: Optional[float] = Field(default=None, ge=0, le=100)
+    target_percent: Optional[float] = Field(default=None, ge=0, le=100)
+    price_per_kwh: Optional[float] = Field(default=None, ge=0)
+    final_percent: Optional[float] = Field(default=None, ge=0, le=100)
+    total_kwh: Optional[float] = Field(default=None, ge=0)
+
+
 class ReadingOut(BaseModel):
     id: int
     kwh: float

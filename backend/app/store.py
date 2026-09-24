@@ -173,6 +173,48 @@ class Store:
             )
             conn.commit()
 
+    def delete_session(self, session_id: int) -> None:
+        with self._lock:
+            conn = self._connect()
+            conn.execute("DELETE FROM readings WHERE session_id = ?", (session_id,))
+            conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+            conn.commit()
+
+    def update_session(
+        self,
+        session_id: int,
+        initial_percent: Optional[float] = None,
+        target_percent: Optional[float] = None,
+        price_per_kwh: Optional[float] = None,
+        final_percent: Optional[float] = None,
+        total_kwh: Optional[float] = None,
+    ) -> None:
+        with self._lock:
+            conn = self._connect()
+            fields = {
+                "initial_percent": initial_percent,
+                "target_percent": target_percent,
+                "price_per_kwh": price_per_kwh,
+                "final_percent": final_percent,
+            }
+            set_clauses = [f"{key} = ?" for key, value in fields.items() if value is not None]
+            values = [value for value in fields.values() if value is not None]
+            if set_clauses:
+                conn.execute(
+                    f"UPDATE sessions SET {', '.join(set_clauses)} WHERE id = ?",
+                    (*values, session_id),
+                )
+            if total_kwh is not None:
+                # A single cumulative reading replaces the log: the history
+                # row shows one aggregate number, so "editing the kWh" means
+                # correcting that number, not any particular reading.
+                conn.execute("DELETE FROM readings WHERE session_id = ?", (session_id,))
+                conn.execute(
+                    "INSERT INTO readings (session_id, kwh, source, timestamp) VALUES (?, ?, 'manual', ?)",
+                    (session_id, total_kwh, _now()),
+                )
+            conn.commit()
+
     def get_session(self, session_id: int) -> Optional[dict]:
         with self._lock:
             conn = self._connect()

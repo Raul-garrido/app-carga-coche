@@ -191,6 +191,8 @@ function showIdleSession() {
   document.getElementById("session-active").classList.add("hidden");
 }
 
+let editingSessionId = null;
+
 async function loadHistory() {
   const sessions = await Api.listSessions();
   const finished = sessions.filter((s) => s.status === "finished");
@@ -198,21 +200,89 @@ async function loadHistory() {
   body.innerHTML = "";
 
   if (finished.length === 0) {
-    body.innerHTML = '<tr><td colspan="4" class="hint">Sin sesiones todavía.</td></tr>';
+    body.innerHTML = '<tr><td colspan="5" class="hint">Sin sesiones todavía.</td></tr>';
     return;
   }
 
   finished.forEach((session) => {
     const tr = document.createElement("tr");
     const date = new Date(session.started_at).toLocaleDateString();
-    tr.innerHTML = `
-      <td>${date}</td>
-      <td>${session.initial_percent.toFixed(0)}% → ${(session.final_percent ?? session.estimated_final_percent).toFixed(0)}%</td>
-      <td>${session.accumulated_kwh.toFixed(2)} kWh</td>
-      <td>${fmtEuro(session.accumulated_cost)}</td>
-    `;
+    const finalPercent = session.final_percent ?? session.estimated_final_percent;
+
+    if (editingSessionId === session.id) {
+      tr.innerHTML = `
+        <td>${date}</td>
+        <td>
+          <input type="number" class="edit-final-percent" min="0" max="100" step="1" value="${finalPercent.toFixed(0)}" />
+        </td>
+        <td><input type="number" class="edit-kwh" min="0" step="0.01" value="${session.accumulated_kwh.toFixed(2)}" /></td>
+        <td><input type="number" class="edit-price" min="0" step="0.0001" value="${session.price_per_kwh}" /></td>
+        <td class="row-actions">
+          <button type="button" data-action="save" data-id="${session.id}">Guardar</button>
+          <button type="button" class="ghost" data-action="cancel">Cancelar</button>
+        </td>
+      `;
+    } else {
+      tr.innerHTML = `
+        <td>${date}</td>
+        <td>${session.initial_percent.toFixed(0)}% → ${finalPercent.toFixed(0)}%</td>
+        <td>${session.accumulated_kwh.toFixed(2)} kWh</td>
+        <td>${fmtEuro(session.accumulated_cost)}</td>
+        <td class="row-actions">
+          <button type="button" class="ghost" data-action="edit" data-id="${session.id}">Editar</button>
+          <button type="button" class="ghost danger-text" data-action="delete" data-id="${session.id}">Borrar</button>
+        </td>
+      `;
+    }
     body.appendChild(tr);
   });
+}
+
+async function handleHistoryClick(event) {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+  const { action, id } = button.dataset;
+
+  if (action === "edit") {
+    editingSessionId = Number(id);
+    await loadHistory();
+    return;
+  }
+
+  if (action === "cancel") {
+    editingSessionId = null;
+    await loadHistory();
+    return;
+  }
+
+  if (action === "delete") {
+    if (!confirm("¿Borrar esta sesión del historial? No se puede deshacer.")) return;
+    try {
+      await Api.deleteSession(Number(id));
+      await loadHistory();
+    } catch (err) {
+      showError(`No se pudo borrar: ${err.message}`);
+    }
+    return;
+  }
+
+  if (action === "save") {
+    const row = button.closest("tr");
+    const finalPercent = Number(row.querySelector(".edit-final-percent").value);
+    const totalKwh = Number(row.querySelector(".edit-kwh").value);
+    const pricePerKwh = Number(row.querySelector(".edit-price").value);
+    try {
+      await Api.updateSession(Number(id), {
+        final_percent: finalPercent,
+        total_kwh: totalKwh,
+        price_per_kwh: pricePerKwh,
+      });
+      editingSessionId = null;
+      await loadHistory();
+    } catch (err) {
+      showError(`No se pudo guardar: ${err.message}`);
+    }
+  }
 }
 
 async function restoreActiveSession() {
@@ -240,6 +310,7 @@ async function init() {
   document.getElementById("reading-form").addEventListener("submit", handleAddReading);
   document.getElementById("finish-form").addEventListener("submit", handleFinishSession);
   document.getElementById("target-input").addEventListener("input", renderBattery);
+  document.getElementById("history-body").addEventListener("click", handleHistoryClick);
 
   await loadConfig();
   await refreshBatteryStatus();

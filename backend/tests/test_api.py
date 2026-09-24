@@ -88,3 +88,50 @@ def test_full_session_lifecycle(client):
 
     second_finish = client.post(f"/api/sessions/{session_id}/finish", json={})
     assert second_finish.status_code == 409
+
+
+def test_edit_session_total_kwh_and_price(client):
+    create = client.post(
+        "/api/sessions",
+        json={"initial_percent": 50, "target_percent": 100, "price_per_kwh": 0.15},
+    )
+    session_id = create.json()["id"]
+    client.post(f"/api/sessions/{session_id}/readings", json={"kwh": 3.0})
+    client.post(f"/api/sessions/{session_id}/finish", json={"final_percent": 70})
+
+    edit = client.patch(
+        f"/api/sessions/{session_id}",
+        json={"total_kwh": 5.0, "price_per_kwh": 0.20, "final_percent": 85},
+    )
+    assert edit.status_code == 200
+    body = edit.json()
+    assert body["accumulated_kwh"] == pytest.approx(5.0)
+    assert body["accumulated_cost"] == pytest.approx(1.0)
+    assert body["final_percent"] == pytest.approx(85)
+    assert len(body["readings"]) == 1  # replaced, not appended
+
+    fetched = client.get(f"/api/sessions/{session_id}")
+    assert fetched.json()["accumulated_kwh"] == pytest.approx(5.0)
+
+
+def test_edit_missing_session_404(client):
+    edit = client.patch("/api/sessions/999", json={"price_per_kwh": 0.2})
+    assert edit.status_code == 404
+
+
+def test_delete_session(client):
+    create = client.post(
+        "/api/sessions",
+        json={"initial_percent": 50, "target_percent": 100, "price_per_kwh": 0.15},
+    )
+    session_id = create.json()["id"]
+    client.post(f"/api/sessions/{session_id}/finish", json={})
+
+    delete = client.delete(f"/api/sessions/{session_id}")
+    assert delete.status_code == 204
+
+    assert client.get(f"/api/sessions/{session_id}").status_code == 404
+    assert client.get("/api/sessions").json() == []
+
+    second_delete = client.delete(f"/api/sessions/{session_id}")
+    assert second_delete.status_code == 404
