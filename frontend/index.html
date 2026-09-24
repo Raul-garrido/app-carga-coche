@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Coste de carga</title>
+  <meta name="theme-color" content="#007a5a" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="app-header">
+      <h1>Coste de carga</h1>
+      <p class="subtitle">MyAudi + Policharger</p>
+    </header>
+
+    <section class="card" id="battery-card">
+      <h2>Estado de la batería</h2>
+      <div class="row">
+        <div class="stat">
+          <span class="stat-value" id="battery-percent">—</span>
+          <span class="stat-label">% actual (<span id="battery-source">sin datos</span>)</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value" id="battery-charged-kwh">—</span>
+          <span class="stat-label">kWh cargados</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value" id="battery-remaining-kwh">—</span>
+          <span class="stat-label">kWh hasta objetivo</span>
+        </div>
+      </div>
+      <form id="soc-form" class="inline-form">
+        <label>
+          % actual (MyAudi)
+          <input type="number" id="soc-input" min="0" max="100" step="1" placeholder="ej. 50" required />
+        </label>
+        <button type="submit">Actualizar %</button>
+      </form>
+    </section>
+
+    <section class="card" id="plan-card">
+      <h2>Precio y objetivo</h2>
+      <form id="plan-form" class="inline-form">
+        <label>
+          Precio €/kWh
+          <input type="number" id="price-input" min="0" step="0.0001" placeholder="ej. 0.15" required />
+        </label>
+        <label>
+          Objetivo %
+          <input type="number" id="target-input" min="0" max="100" step="1" value="100" required />
+        </label>
+        <button type="submit">Calcular</button>
+      </form>
+      <div class="row">
+        <div class="stat">
+          <span class="stat-value" id="plan-remaining">—</span>
+          <span class="stat-label">kWh restantes</span>
+        </div>
+        <div class="stat highlight">
+          <span class="stat-value" id="plan-cost">—</span>
+          <span class="stat-label">coste estimado</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="session-card">
+      <h2>Sesión de carga</h2>
+
+      <div id="session-idle">
+        <p class="hint">Introduce el % inicial, el precio y el objetivo arriba, y pulsa "Iniciar sesión" para empezar a registrar los kWh que marque Policharger.</p>
+        <button id="start-session-btn" type="button">Iniciar sesión</button>
+      </div>
+
+      <div id="session-active" class="hidden">
+        <div class="row">
+          <div class="stat">
+            <span class="stat-value" id="session-kwh">0</span>
+            <span class="stat-label">kWh acumulados</span>
+          </div>
+          <div class="stat highlight">
+            <span class="stat-value" id="session-cost">0,00 €</span>
+            <span class="stat-label">coste acumulado</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value" id="session-final-percent">—</span>
+            <span class="stat-label">% estimado</span>
+          </div>
+        </div>
+
+        <form id="reading-form" class="inline-form">
+          <label>
+            kWh totales (Policharger)
+            <input type="number" id="reading-input" min="0" step="0.01" placeholder="ej. 3.6" required />
+          </label>
+          <button type="submit">Añadir lectura</button>
+        </form>
+
+        <details id="readings-log">
+          <summary>Lecturas de esta sesión</summary>
+          <ul id="readings-list"></ul>
+        </details>
+
+        <form id="finish-form" class="inline-form">
+          <label>
+            % final (opcional, si lo sabes)
+            <input type="number" id="final-percent-input" min="0" max="100" step="1" />
+          </label>
+          <button type="submit" class="danger">Finalizar sesión</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="card" id="history-card">
+      <h2>Historial</h2>
+      <table id="history-table">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>% inicial → final</th>
+            <th>kWh</th>
+            <th>Coste</th>
+          </tr>
+        </thead>
+        <tbody id="history-body">
+          <tr><td colspan="4" class="hint">Sin sesiones todavía.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <p id="error-banner" class="error hidden"></p>
+  </main>
+
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

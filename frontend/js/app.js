@@ -1,0 +1,248 @@
+const state = {
+  config: null,
+  battery: null, // { percent, source, updated_at } | null
+  activeSessionId: loadActiveSessionId(),
+};
+
+function loadActiveSessionId() {
+  const raw = localStorage.getItem("activeSessionId");
+  return raw ? Number(raw) : null;
+}
+
+function saveActiveSessionId(id) {
+  if (id == null) {
+    localStorage.removeItem("activeSessionId");
+  } else {
+    localStorage.setItem("activeSessionId", String(id));
+  }
+}
+
+function fmtKwh(value) {
+  return `${Number(value).toFixed(2)} kWh`;
+}
+
+function fmtEuro(value) {
+  return `${Number(value).toFixed(2).replace(".", ",")} €`;
+}
+
+function fmtPercent(value) {
+  return `${Number(value).toFixed(1)} %`;
+}
+
+function showError(message) {
+  const banner = document.getElementById("error-banner");
+  banner.textContent = message;
+  banner.classList.remove("hidden");
+  setTimeout(() => banner.classList.add("hidden"), 6000);
+}
+
+async function refreshBatteryStatus() {
+  try {
+    state.battery = await Api.getBatteryStatus();
+  } catch (err) {
+    state.battery = null;
+  }
+  renderBattery();
+}
+
+function renderBattery() {
+  const capacity = state.config ? state.config.battery_capacity_kwh : 14.4;
+  const percentEl = document.getElementById("battery-percent");
+  const sourceEl = document.getElementById("battery-source");
+  const chargedEl = document.getElementById("battery-charged-kwh");
+  const remainingEl = document.getElementById("battery-remaining-kwh");
+  const targetInput = document.getElementById("target-input");
+
+  if (!state.battery) {
+    percentEl.textContent = "—";
+    sourceEl.textContent = "sin datos";
+    chargedEl.textContent = "—";
+    remainingEl.textContent = "—";
+    return;
+  }
+
+  const target = Number(targetInput.value) || 100;
+  percentEl.textContent = fmtPercent(state.battery.percent);
+  sourceEl.textContent = state.battery.source === "myaudi" ? "MyAudi auto" : "manual";
+  const charged = (capacity * state.battery.percent) / 100;
+  const remaining = Math.max((capacity * target) / 100 - charged, 0);
+  chargedEl.textContent = fmtKwh(charged);
+  remainingEl.textContent = fmtKwh(remaining);
+
+  document.getElementById("soc-input").value = state.battery.percent;
+}
+
+async function loadConfig() {
+  state.config = await Api.getConfig();
+  if (state.config.default_price_per_kwh != null) {
+    document.getElementById("price-input").value = state.config.default_price_per_kwh;
+  }
+  document.getElementById("target-input").value = state.config.default_target_percent;
+}
+
+async function handleSocSubmit(event) {
+  event.preventDefault();
+  const percent = Number(document.getElementById("soc-input").value);
+  try {
+    state.battery = await Api.setManualSoc(percent);
+    renderBattery();
+  } catch (err) {
+    showError(`No se pudo actualizar el %: ${err.message}`);
+  }
+}
+
+async function handlePlanSubmit(event) {
+  event.preventDefault();
+  const price = Number(document.getElementById("price-input").value);
+  const target = Number(document.getElementById("target-input").value);
+  try {
+    const plan = await Api.getPlan(price, target);
+    document.getElementById("plan-remaining").textContent = fmtKwh(plan.remaining_kwh);
+    document.getElementById("plan-cost").textContent = fmtEuro(plan.estimated_cost);
+    renderBattery();
+  } catch (err) {
+    showError(`No se pudo calcular: ${err.message}`);
+  }
+}
+
+async function handleStartSession() {
+  if (!state.battery) {
+    showError("Introduce primero el % actual de MyAudi.");
+    return;
+  }
+  const price = Number(document.getElementById("price-input").value);
+  const target = Number(document.getElementById("target-input").value);
+  if (!price) {
+    showError("Introduce el precio por kWh antes de iniciar la sesión.");
+    return;
+  }
+  try {
+    const session = await Api.createSession({
+      initial_percent: state.battery.percent,
+      target_percent: target,
+      price_per_kwh: price,
+    });
+    state.activeSessionId = session.id;
+    saveActiveSessionId(session.id);
+    renderSession(session);
+  } catch (err) {
+    showError(`No se pudo iniciar la sesión: ${err.message}`);
+  }
+}
+
+async function handleAddReading(event) {
+  event.preventDefault();
+  if (!state.activeSessionId) return;
+  const kwh = Number(document.getElementById("reading-input").value);
+  try {
+    const session = await Api.addReading(state.activeSessionId, kwh);
+    renderSession(session);
+    document.getElementById("reading-input").value = "";
+  } catch (err) {
+    showError(`No se pudo añadir la lectura: ${err.message}`);
+  }
+}
+
+async function handleFinishSession(event) {
+  event.preventDefault();
+  if (!state.activeSessionId) return;
+  const raw = document.getElementById("final-percent-input").value;
+  const finalPercent = raw === "" ? null : Number(raw);
+  try {
+    await Api.finishSession(state.activeSessionId, finalPercent);
+    state.activeSessionId = null;
+    saveActiveSessionId(null);
+    document.getElementById("final-percent-input").value = "";
+    showIdleSession();
+    await loadHistory();
+  } catch (err) {
+    showError(`No se pudo finalizar la sesión: ${err.message}`);
+  }
+}
+
+function renderSession(session) {
+  document.getElementById("session-idle").classList.add("hidden");
+  document.getElementById("session-active").classList.remove("hidden");
+
+  document.getElementById("session-kwh").textContent = session.accumulated_kwh.toFixed(2);
+  document.getElementById("session-cost").textContent = fmtEuro(session.accumulated_cost);
+  document.getElementById("session-final-percent").textContent = fmtPercent(
+    session.estimated_final_percent
+  );
+
+  const list = document.getElementById("readings-list");
+  list.innerHTML = "";
+  session.readings.forEach((reading) => {
+    const li = document.createElement("li");
+    const time = new Date(reading.timestamp).toLocaleTimeString();
+    li.textContent = `${time} — ${reading.kwh.toFixed(2)} kWh (${reading.source})`;
+    list.appendChild(li);
+  });
+}
+
+function showIdleSession() {
+  document.getElementById("session-idle").classList.remove("hidden");
+  document.getElementById("session-active").classList.add("hidden");
+}
+
+async function loadHistory() {
+  const sessions = await Api.listSessions();
+  const finished = sessions.filter((s) => s.status === "finished");
+  const body = document.getElementById("history-body");
+  body.innerHTML = "";
+
+  if (finished.length === 0) {
+    body.innerHTML = '<tr><td colspan="4" class="hint">Sin sesiones todavía.</td></tr>';
+    return;
+  }
+
+  finished.forEach((session) => {
+    const tr = document.createElement("tr");
+    const date = new Date(session.started_at).toLocaleDateString();
+    tr.innerHTML = `
+      <td>${date}</td>
+      <td>${session.initial_percent.toFixed(0)}% → ${(session.final_percent ?? session.estimated_final_percent).toFixed(0)}%</td>
+      <td>${session.accumulated_kwh.toFixed(2)} kWh</td>
+      <td>${fmtEuro(session.accumulated_cost)}</td>
+    `;
+    body.appendChild(tr);
+  });
+}
+
+async function restoreActiveSession() {
+  if (!state.activeSessionId) return;
+  try {
+    const session = await Api.getSession(state.activeSessionId);
+    if (session.status === "active") {
+      renderSession(session);
+    } else {
+      state.activeSessionId = null;
+      saveActiveSessionId(null);
+    }
+  } catch (err) {
+    state.activeSessionId = null;
+    saveActiveSessionId(null);
+  }
+}
+
+async function init() {
+  document.getElementById("soc-form").addEventListener("submit", handleSocSubmit);
+  document.getElementById("plan-form").addEventListener("submit", handlePlanSubmit);
+  document.getElementById("start-session-btn").addEventListener("click", handleStartSession);
+  document.getElementById("reading-form").addEventListener("submit", handleAddReading);
+  document.getElementById("finish-form").addEventListener("submit", handleFinishSession);
+  document.getElementById("target-input").addEventListener("input", renderBattery);
+
+  await loadConfig();
+  await refreshBatteryStatus();
+  await restoreActiveSession();
+  await loadHistory();
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("service-worker.js").catch(() => {
+      /* PWA install just won't be offline-capable; not fatal */
+    });
+  }
+}
+
+init();
